@@ -19,13 +19,13 @@ You supply your own API keys. Nothing is stored externally.
 
 **Generate from your playlists** -- Select existing playlists. The AI analyzes your taste and builds a new playlist of songs you will actually like, pulling from the full Spotify catalog.
 
-**Generate from a prompt** -- Describe what you want in plain language. The AI researches artists, subgenres, and deep cuts using web search, then resolves every track against Spotify.
+**Generate from a prompt** -- Describe what you want. The AI researches artists, subgenres, and deep cuts using web search, then resolves every track against Spotify.
 
 **Manage playlists** -- Sort by release date, popularity, artist, or name. Chat with the AI about your library. Add AI-matched songs to existing playlists. Rename, delete, and edit playlists inline.
 
-**Multi-model support** -- Choose between OpenAI models (GPT-5 Mini, GPT-5.2, GPT-5 Nano, and others) or Google Gemini models. Each brings different strengths.
+**Multi-model support** -- Choose between OpenAI models (GPT-5 Mini, GPT-5.2, GPT-5 Nano, and others) or Google Gemini models.
 
-**Other features** -- 30-second previews, album art, thumbs up/down ratings with iterative refinement, one-click save to Spotify, dark Spotify-inspired UI.
+**Other features** -- Thumbs up/down ratings with iterative refinement, one-click save to Spotify, dark Spotify-inspired UI.
 
 ---
 
