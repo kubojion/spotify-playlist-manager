@@ -8,7 +8,7 @@ You supply your own API keys. Nothing is stored externally.
 
 <br>
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/42ceeb70-cf45-4bc1-b4b0-ecf3734d738d" width="100%">
+  <img src="https://github.com/user-attachments/assets/351d93f7-b7f7-4a12-8ae6-d4523ce66424" width="100%">
   <br><br>
   <em>Preview of Main Window</em>
 </div>
