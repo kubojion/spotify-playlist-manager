@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify AI Playlist Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        sp: { DEFAULT: '#1ed760', light: '#4bff8b', dark: '#1DB954', glow: 'rgba(30,215,96,0.25)' },
+                        surface: { 1: '#121212', 2: '#181818', 3: '#232323', 4: '#282828', 5: '#333333', 6: '#3e3e3e' },
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="/css/app.css">
+    <style>
+        [v-cloak] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body class="bg-surface-1 text-white antialiased overflow-hidden h-screen select-none">
+
+    <!-- Fallback loading indicator (visible until Vue mounts) -->
+    <div id="pre-load"
+        style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#121212;z-index:9999;">
+        <div style="text-align:center;color:#fff;font-family:sans-serif;">
+            <img src="/assets/disc-3.svg" style="width:48px;height:48px;margin:0 auto 1rem;animation:spin 1.2s linear infinite;">
+            <p style="color:#999;font-size:0.875rem;">Loading...</p>
+        </div>
+    </div>
+
+    <div id="app" v-cloak class="h-screen flex flex-col">
+
+        <!-- ═══════════════════ LOADING SCREEN ═══════════════════ -->
+        <div v-if="view === 'loading'" class="flex-1 flex items-center justify-center">
+            <div class="text-center fade-in">
+                <img src="/assets/disc-3.svg" class="w-14 h-14 mx-auto mb-4 text-sp" style="animation:spin360 1.2s linear infinite;">
+                <div class="loading-dots flex gap-1 justify-center">
+                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ SETUP WIZARD ═══════════════════ -->
+        <div v-else-if="view === 'setup'" class="flex-1 flex items-center justify-center p-4">
+            <div class="w-full max-w-lg slide-up">
+                <div class="bg-surface-3 rounded-2xl p-8 shadow-2xl border border-surface-5/30">
+                    <div class="text-center mb-8">
+                        <img src="/assets/app_icon.svg" class="w-14 h-14 mx-auto mb-3 text-sp">
+                        <h1 class="text-2xl font-bold mb-1">Spotify AI Playlist Manager</h1>
+                        <p class="text-gray-400 text-sm">Enter your API keys to get started</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotify
+                                Client ID</label>
+                            <input v-model="setupForm.spotifyClientId" type="text" class="inp"
+                                placeholder="e.g. a1b2c3d4e5f6...">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Spotify
+                                Client Secret</label>
+                            <input v-model="setupForm.spotifyClientSecret" type="password" class="inp"
+                                placeholder="e.g. x9y8z7w6v5u4...">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">OpenAI
+                                API Key</label>
+                            <input v-model="setupForm.openaiApiKey" type="password" class="inp" placeholder="sk-...">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">Gemini
+                                API Key <span class="text-gray-600 normal-case">(optional)</span></label>
+                            <input v-model="setupForm.geminiApiKey" type="password" class="inp" placeholder="AIza...">
+                        </div>
+                    </div>
+
+                    <button @click="submitSetup" :disabled="setupLoading"
+                        class="w-full mt-6 bg-sp hover:bg-sp-light text-black font-bold py-3 px-6 rounded-full transition-all duration-200 transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100">
+                        {{ setupLoading ? 'Saving...' : 'Save &amp; Continue' }}
+                    </button>
+
+                    <div class="mt-6 text-xs text-gray-500 space-y-2">
+                        <details class="cursor-pointer">
+                            <summary class="hover:text-gray-300 transition-colors">How to get Spotify API keys</summary>
+                            <ol class="mt-2 ml-4 list-decimal space-y-1 text-gray-400">
+                                <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank"
+                                        class="text-sp hover:underline">developer.spotify.com/dashboard</a></li>
+                                <li>Create a new app</li>
+                                <li>In the app settings, add <code
+                                        class="bg-surface-5 px-1 rounded text-xs">http://localhost:5000/callback</code>
+                                    as a Redirect URI</li>
+                                <li>Copy the Client ID and Client Secret</li>
+                            </ol>
+                        </details>
+                        <details class="cursor-pointer">
+                            <summary class="hover:text-gray-300 transition-colors">How to get OpenAI API key</summary>
+                            <ol class="mt-2 ml-4 list-decimal space-y-1 text-gray-400">
+                                <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank"
+                                        class="text-sp hover:underline">platform.openai.com/api-keys</a></li>
+                                <li>Create a new secret key</li>
+                                <li>Copy and paste it above</li>
+                            </ol>
+                        </details>
+                        <details class="cursor-pointer">
+                            <summary class="hover:text-gray-300 transition-colors">How to get Gemini API key</summary>
+                            <ol class="mt-2 ml-4 list-decimal space-y-1 text-gray-400">
+                                <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank"
+                                        class="text-sp hover:underline">Google AI Studio</a></li>
+                                <li>Click "Create API key"</li>
+                                <li>Copy and paste it above</li>
+                            </ol>
+                        </details>
+                    </div>
+
+                    <p v-if="setupError" class="mt-4 text-red-400 text-sm text-center">{{ setupError }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ LOGIN SCREEN ═══════════════════ -->
+        <div v-else-if="view === 'login'" class="flex-1 flex items-center justify-center p-4">
+            <div class="text-center slide-up">
+                <div class="bg-surface-3 rounded-2xl p-10 shadow-2xl border border-surface-5/30 max-w-md">
+                    <img src="/assets/headphones.svg" class="w-14 h-14 mx-auto mb-4">
+                    <h1 class="text-2xl font-bold mb-2">Connect to Spotify</h1>
+                    <p class="text-gray-400 mb-8 text-sm">Log in with your Spotify account to access your playlists</p>
+                    <button @click="loginSpotify"
+                        class="bg-sp hover:bg-sp-light text-black font-bold py-3 px-8 rounded-full transition-all duration-200 transform hover:scale-105 active:scale-95 text-lg">
+                        Log in with Spotify
+                    </button>
+                    <button @click="openSettings()"
+                        class="block mx-auto mt-4 text-gray-500 hover:text-gray-300 text-xs transition-colors">
+                        Change API Keys
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ MAIN APP ═══════════════════ -->
+        <div v-else-if="view === 'app'" class="flex-1 flex flex-col overflow-hidden">
+
+            <!-- HEADER -->
+            <header
+                class="h-14 bg-surface-2 border-b border-surface-5/40 flex items-center justify-between px-4 shrink-0 z-30">
+                <div class="flex items-center gap-3">
+                    <img src="/assets/app_icon.svg" class="w-6 h-6">
+                    <span class="font-bold text-sm hidden sm:inline">Spotify AI Playlist Manager</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="relative" id="model-dropdown-container">
+                        <button @click.stop="showModelDropdown = !showModelDropdown"
+                            class="bg-surface-4 text-xs text-gray-300 rounded-lg px-3 py-1.5 border border-surface-5 hover:border-gray-400 outline-none cursor-pointer flex items-center gap-2 transition-colors">
+                            <span>{{ models.find(m => m.id === selectedModel)?.name || selectedModel }}</span>
+                            <span class="text-[10px] text-gray-500">▾</span>
+                        </button>
+                        <div v-if="showModelDropdown" class="absolute right-0 top-full mt-1 w-72 bg-surface-3 border border-surface-5 rounded-xl shadow-2xl z-50 py-1 overflow-hidden max-h-80 overflow-y-auto scrollbar-thin">
+                            <button v-for="m in models" :key="m.id" @click="selectedModel = m.id; saveModelPreference(); showModelDropdown = false"
+                                :class="['w-full text-left px-4 py-2.5 flex items-start gap-2 hover:bg-surface-4 transition-colors', selectedModel === m.id && 'bg-sp/10']">
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium" :class="selectedModel === m.id ? 'text-sp' : 'text-white'">{{ m.name }}</span>
+                                        <span v-if="m.id === 'gpt-5-mini'" class="text-[8px] bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full font-semibold uppercase">Recommended</span>
+                                        <span v-if="m.provider === 'gemini'" class="text-[8px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full font-semibold uppercase">Gemini</span>
+                                        <span v-else class="text-[8px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full font-semibold uppercase">OpenAI</span>
+                                    </div>
+                                    <span class="text-[10px] text-gray-500">{{ m.description }}</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                    <div v-if="user" class="flex items-center gap-2">
+                        <img v-if="user.image" :src="user.image" class="w-7 h-7 rounded-full">
+                        <span class="text-sm text-gray-300 hidden md:inline">{{ user.display_name }}</span>
+                    </div>
+                    <button @click="openSettings()"
+                        class="text-gray-400 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-surface-4"
+                        title="Settings"><img src="/assets/settings.svg" class="w-5 h-5 opacity-60 hover:opacity-100 transition-opacity" style="filter:brightness(0) invert(1);"></button>
+                </div>
+            </header>
+
+            <!-- MAIN LAYOUT -->
+            <div class="flex-1 flex overflow-hidden">
+
+                <!-- ─── LEFT SIDEBAR ─── -->
+                <aside :style="{ width: leftPanelWidth + 'px' }" class="bg-surface-2 border-r border-surface-5/40 flex flex-col shrink-0 overflow-hidden relative">
+                    <!-- Drag handle (right edge) -->
+                    <div @mousedown="startResizeLeft" class="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-sp/40 transition-colors z-10"></div>
+                    <nav class="p-3 space-y-1 shrink-0">
+                        <div>
+                            <div class="flex items-center">
+                                <button @click="setFeature('from-playlists')"
+                                    :class="['nav-btn flex-1', feature === 'from-playlists' && 'nav-btn-active']">
+                                    <img src="/assets/headphones.svg" class="w-5 h-5 opacity-70" style="filter:brightness(0) invert(0.75);"><span>From Playlists</span>
+                                </button>
+                                <button v-if="historyForFeature('from-playlists').length > 0"
+                                    @click.stop="toggleHistoryFor('from-playlists')"
+                                    class="px-2 py-2 text-gray-400 hover:text-white transition-colors text-sm">
+                                    {{ showHistoryFor === 'from-playlists' ? '▾' : '▸' }}
+                                </button>
+                            </div>
+                            <div v-if="showHistoryFor === 'from-playlists'" class="ml-8 mt-0.5 mb-1 space-y-0.5">
+                                <div v-for="h in historyForFeature('from-playlists')" :key="h.id"
+                                    @click="loadChatFromHistory(h)"
+                                    @contextmenu.prevent="showHistoryContextMenuFn($event, h.id)"
+                                    class="w-full text-left text-[11px] text-gray-400 hover:text-white hover:bg-surface-4 px-2 py-1.5 rounded truncate transition-colors cursor-pointer">
+                                    <template v-if="renamingHistoryId === h.id">
+                                        <input v-model="renamingHistoryName" @blur="finishRenameChatHistory" @keydown.enter="finishRenameChatHistory"
+                                            class="w-full bg-surface-4 text-white text-[11px] px-1.5 py-0.5 rounded border border-sp outline-none"
+                                            @click.stop>
+                                    </template>
+                                    <template v-else>{{ h.name }}</template>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center">
+                                <button @click="setFeature('from-prompt')"
+                                    :class="['nav-btn flex-1', feature === 'from-prompt' && 'nav-btn-active']">
+                                    <img src="/assets/square-chevron-right.svg" class="w-5 h-5 opacity-70" style="filter:brightness(0) invert(0.75);"><span>From Prompt</span>
+                                </button>
+                                <button v-if="historyForFeature('from-prompt').length > 0"
+                                    @click.stop="toggleHistoryFor('from-prompt')"
+                                    class="px-2 py-2 text-gray-400 hover:text-white transition-colors text-sm">
+                                    {{ showHistoryFor === 'from-prompt' ? '▾' : '▸' }}
+                                </button>
+                            </div>
+                            <div v-if="showHistoryFor === 'from-prompt'" class="ml-8 mt-0.5 mb-1 space-y-0.5">
+                                <div v-for="h in historyForFeature('from-prompt')" :key="h.id"
+                                    @click="loadChatFromHistory(h)"
+                                    @contextmenu.prevent="showHistoryContextMenuFn($event, h.id)"
+                                    class="w-full text-left text-[11px] text-gray-400 hover:text-white hover:bg-surface-4 px-2 py-1.5 rounded truncate transition-colors cursor-pointer">
+                                    <template v-if="renamingHistoryId === h.id">
+                                        <input v-model="renamingHistoryName" @blur="finishRenameChatHistory" @keydown.enter="finishRenameChatHistory"
+                                            class="w-full bg-surface-4 text-white text-[11px] px-1.5 py-0.5 rounded border border-sp outline-none"
+                                            @click.stop>
+                                    </template>
+                                    <template v-else>{{ h.name }}</template>
+                                </div>
+                            </div>
+                        </div>
+                        <button @click="setFeature('manage')"
+                            :class="['nav-btn', feature === 'manage' && 'nav-btn-active']">
+                            <img src="/assets/list-music.svg" class="w-5 h-5 opacity-70" style="filter:brightness(0) invert(0.75);"><span>Manage Playlists</span>
+                        </button>
+                    </nav>
+
+                    <div class="border-t border-surface-5/40 mx-3"></div>
+
+                    <!-- Playlist List (Feature 1 & 3) -->
+                    <div v-if="feature === 'from-playlists' || feature === 'manage'"
+                        class="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-thin">
+                        <div class="flex items-center justify-between mb-2 px-1 gap-2 flex-wrap">
+                            <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Playlists</p>
+                            <div class="flex items-center gap-2">
+                                <div class="flex items-center bg-surface-4 rounded-full p-0.5">
+                                    <button @click="showOnlyMyPlaylists = false"
+                                        :class="['text-[10px] px-2.5 py-0.5 rounded-full transition-colors', !showOnlyMyPlaylists ? 'bg-sp/20 text-sp font-medium' : 'text-gray-500 hover:text-gray-300']">All</button>
+                                    <button @click="showOnlyMyPlaylists = true"
+                                        :class="['text-[10px] px-2.5 py-0.5 rounded-full transition-colors', showOnlyMyPlaylists ? 'bg-sp/20 text-sp font-medium' : 'text-gray-500 hover:text-gray-300']">Mine</button>
+                                </div>
+                                <select v-model="playlistSortBy" class="text-[10px] bg-surface-4 text-gray-400 border border-surface-5 rounded px-2 py-1 outline-none focus:border-sp">
+                                    <option value="default">Default</option>
+                                    <option value="name">A → Z</option>
+                                    <option value="name_desc">Z → A</option>
+                                    <option value="tracks">Most tracks</option>
+                                    <option value="tracks_asc">Fewest tracks</option>
+                                    <option value="owner">By owner</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div v-if="playlistsLoading" class="flex justify-center py-8">
+                            <div class="loading-dots flex gap-1"><span class="dot"></span><span class="dot"></span><span
+                                    class="dot"></span></div>
+                        </div>
+                        <button v-for="p in sortedPlaylists" :key="p.id"
+                            @click="feature === 'from-playlists' ? togglePlaylistSelection(p.id) : selectPlaylistForManage(p)"
+                            @contextmenu.prevent="feature === 'manage' && showPlaylistContextMenuFn($event, p)"
+                            :class="['playlist-item group', (isPlaylistSelected(p.id) || (feature === 'manage' && managedPlaylist && managedPlaylist.id === p.id)) && 'playlist-item-active']">
+                            <img v-if="p.image" :src="p.image" class="w-10 h-10 rounded object-cover shrink-0">
+                            <div v-else
+                                class="w-10 h-10 rounded bg-surface-5 flex items-center justify-center shrink-0">
+                                <img src="/assets/music.svg" class="w-5 h-5 opacity-40" style="filter:brightness(0) invert(1);"></div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium truncate">{{ p.name }}</p>
+                                <p class="text-[10px] text-gray-500">{{ p.track_count }} tracks</p>
+                            </div>
+                            <div v-if="feature === 'from-playlists'"
+                                :class="['w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-all duration-200', isPlaylistSelected(p.id) ? 'bg-sp border-sp text-black' : 'border-surface-5 group-hover:border-gray-400']">
+                                <span v-if="isPlaylistSelected(p.id)" class="text-xs font-bold">✓</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Feature 2 info -->
+                    <div v-if="feature === 'from-prompt'" class="flex-1 p-4">
+                        <div class="bg-surface-3 rounded-xl p-4 border border-surface-5/50">
+                            <p class="text-sm font-medium mb-2"><img src="/assets/square-chevron-right.svg" class="w-4 h-4 inline mr-1.5 opacity-60" style="filter:brightness(0) invert(0.75);">AI Playlist Generator</p>
+                            <p class="text-xs text-gray-400 leading-relaxed">Describe your ideal playlist in the prompt
+                                area. Be as specific or abstract as you like — mention genres, moods, artists,
+                                activities, or even a story you want the playlist to tell.</p>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- ─── CENTER WORKSPACE ─── -->
+                <section class="flex-1 flex flex-col overflow-hidden transition-all duration-300 bg-surface-1 min-w-0">
+
+                    <!-- Feature 1 & 2: Generation Workspace with Chat Interface -->
+                    <div v-if="feature === 'from-playlists' || feature === 'from-prompt'"
+                        class="flex-1 flex flex-col overflow-hidden">
+                        
+                        <!-- Header with New Chat button -->
+                        <div class="flex items-center justify-between px-6 py-3 border-b border-surface-5/40">
+                            <h2 class="text-lg font-bold">{{ feature === 'from-playlists' ? 'Generate from Your Playlists' : 'Generate from Prompt' }}</h2>
+                            <button @click="startNewChat" v-if="conversationMessages.length > 0"
+                                class="text-xs bg-surface-4 hover:bg-surface-5 text-gray-300 px-3 py-1.5 rounded-full transition-colors">
+                                New Chat
+                            </button>
+                        </div>
+                        
+                        <!-- Conversation Messages Area -->
+                        <div class="flex-1 overflow-y-auto scrollbar-thin" ref="chatScrollContainer">
+                            <div class="max-w-3xl mx-auto p-6 space-y-4">
+                            <!-- Empty State -->
+                            <div v-if="conversationMessages.length === 0 && !isGenerating" class="flex items-center justify-center" style="min-height: 60vh;">
+                                <div class="text-center max-w-xl">
+                                    <img src="/assets/disc-3.svg" class="w-14 h-14 mx-auto mb-4">
+                                    <h3 class="text-xl font-bold mb-2">Let's create your perfect playlist</h3>
+                                    <p class="text-sm text-gray-400 mb-6">{{ playlistSelectionLabel }}</p>
+                                    <p class="text-xs text-gray-500">Enter your prompt below to get started</p>
+                                </div>
+                            </div>
+
+                            <!-- Conversation Messages -->
+                            <template v-for="msg in conversationMessages" :key="msg.id">
+                                <div :class="['flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
+                                    <div :class="['max-w-[80%] rounded-xl px-4 py-2 slide-up', 
+                                        msg.role === 'user' ? 'bg-sp text-black' : 'bg-surface-3 text-white',
+                                        msg.playlist && selectedMessageId === msg.id && 'ring-2 ring-sp']"
+                                        @click="msg.playlist && selectConversationMessage(msg.id)"
+                                        :style="msg.playlist ? 'cursor: pointer;' : ''">
+                                        <p class="text-sm whitespace-pre-wrap">{{ msg.content }}</p>
+                                        <div v-if="msg.playlist" class="mt-1.5 pt-1.5 border-t border-white/10">
+                                            <p class="text-xs opacity-75 font-medium mb-0.5">{{ msg.playlist.name }}</p>
+                                            <p class="text-xs opacity-60">{{ msg.playlist.songs.length }} tracks · Click to view</p>
+                                        </div>
+                                        <p class="text-[10px] opacity-50 mt-1">{{ new Date(msg.timestamp).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) }}</p>
+                                    </div>
+                                </div>
+                                <!-- Per-message Usage Info -->
+                                <div v-if="debugMode && msg.role === 'assistant' && msg.debugInfo" class="flex justify-center">
+                                    <div class="bg-surface-4/60 border border-surface-5/40 rounded-lg px-4 py-1.5 text-[10px] text-gray-500 flex items-center gap-4 font-mono">
+                                        <span v-if="msg.debugInfo.usage">In: <span class="text-gray-300">{{ msg.debugInfo.usage.input_tokens?.toLocaleString() || '—' }}</span></span>
+                                        <span v-if="msg.debugInfo.usage">Out: <span class="text-gray-300">{{ msg.debugInfo.usage.output_tokens?.toLocaleString() || '—' }}</span></span>
+                                        <span v-if="msg.debugInfo.modelName" class="text-gray-400">{{ msg.debugInfo.modelName }}</span>
+                                        <span v-if="msg.debugInfo.effort" class="text-gray-400">{{ msg.debugInfo.effort }}</span>
+                                        <span v-if="msg.debugInfo.mode" class="text-gray-400">{{ msg.debugInfo.mode }}</span>
+                                        <span v-if="msg.debugInfo.provider" class="text-gray-600">· {{ msg.debugInfo.provider }}</span>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- AI Bubble Suggestions (inline in chat, not popup) -->
+                            <div v-if="showBubbles" class="flex justify-start">
+                                <div class="max-w-[80%] slide-up">
+                                    <div class="flex flex-wrap gap-2 mt-1">
+                                        <button v-for="b in bubbleSuggestions" :key="b" @click="selectBubble(b)"
+                                            :class="['bubble-btn', selectedBubbles.includes(b) && 'bubble-btn-active']">{{ b }}</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Loading Animation -->
+                            <div v-if="isGenerating" class="flex justify-start">
+                                <div class="bg-surface-3 rounded-xl p-3 slide-up">
+                                    <div class="flex items-center gap-3">
+                                        <img src="/assets/disc-3.svg" class="w-6 h-6" style="animation:spin360 1.2s linear infinite;">
+                                        <p class="text-sm text-gray-400">{{ generatingMessage }}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            </div>
+                        </div>
+
+                        <!-- Input Area at Bottom (Gemini-style) -->
+                        <div class="p-4 bg-surface-1">
+                            <div class="max-w-3xl mx-auto">
+                                <!-- Prompt Input -->
+                                <div class="bg-surface-3 rounded-2xl border border-surface-5/50 overflow-hidden">
+                                    <textarea v-model="prompt" @keydown.enter.exact="handleEnterKey"
+                                        :placeholder="conversationMessages.length === 0 ? promptPlaceholder : 'Continue the conversation...'"
+                                        class="w-full bg-transparent text-white px-4 pt-3 pb-1 text-sm placeholder-gray-500 outline-none resize-none"
+                                        rows="1" ref="promptInput"
+                                        @input="autoResizeTextarea"></textarea>
+                                    <!-- Controls Row: Size, Mode on left — Send on right -->
+                                    <div class="flex items-center justify-between px-3 pb-2">
+                                        <div class="flex items-center gap-4">
+                                            <!-- Size selector -->
+                                            <div class="flex items-center gap-1 bg-surface-4/50 rounded-full p-0.5">
+                                                <button v-for="s in [{id:'small',label:'~15'},{id:'medium',label:'~30'},{id:'large',label:'~50'}]" :key="s.id" @click="playlistSize = s.id"
+                                                    :class="['text-[11px] font-medium px-3 py-1 rounded-full transition-all duration-200', playlistSize === s.id ? 'bg-white/15 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300']">{{ s.label }}</button>
+                                            </div>
+                                            <!-- Mode selector -->
+                                            <div class="flex items-center gap-1 bg-surface-4/50 rounded-full p-0.5">
+                                                <button v-for="m in [{id:'auto',label:'Auto'},{id:'quick',label:'Quick'},{id:'thinking',label:'Web Search'},{id:'spotify-only',label:'Spotify'}]" :key="m.id"
+                                                    @click="m.id === 'thinking' && !modelSupportsWebSearch ? null : generationMode = m.id"
+                                                    :disabled="m.id === 'thinking' && !modelSupportsWebSearch"
+                                                    :title="m.id === 'thinking' && !modelSupportsWebSearch ? 'Web search not supported by ' + (models.find(x => x.id === selectedModel)?.name || selectedModel) : ''"
+                                                    :class="['text-[11px] font-medium px-3 py-1 rounded-full transition-all duration-200',
+                                                        generationMode === m.id ? 'bg-white/15 text-white shadow-sm' :
+                                                        (m.id === 'thinking' && !modelSupportsWebSearch) ? 'text-gray-600 cursor-not-allowed opacity-40' :
+                                                        'text-gray-500 hover:text-gray-300']">{{ m.label }}</button>
+                                            </div>
+                                        </div>
+                                        <button @click="generate"
+                                            :disabled="isGenerating || (feature === 'from-prompt' && !prompt.trim() && !selectedBubbles.length && !customAnswer.trim()) || (feature === 'from-playlists' && !selectedPlaylists.length && conversationMessages.length === 0 && !prompt.trim())"
+                                            class="bg-sp hover:bg-sp-light text-black font-bold py-1.5 px-5 rounded-full text-xs transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed">
+                                            {{ isGenerating ? 'Generating...' : 'Send' }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                            <!-- Feature 3: Manage Playlists -->
+                            <div v-if="feature === 'manage'" class="flex-1 flex overflow-hidden">
+                                <!-- Manage Center: Playlist Tracks -->
+                                <div class="flex-1 flex flex-col overflow-hidden">
+                                    <!-- Selected Playlist Display -->
+                                    <div v-if="managedPlaylist" class="flex-1 flex flex-col overflow-hidden">
+                                        <!-- Playlist Header -->
+                                        <div class="shrink-0 p-4 border-b border-surface-5/40">
+                                            <div class="max-w-3xl mx-auto flex items-center gap-4">
+                                                <img v-if="managedPlaylist.image" :src="managedPlaylist.image" class="w-16 h-16 rounded-lg object-cover cursor-pointer hover:opacity-80 transition-opacity" @click="startEditManagedPlaylist" title="Click to edit">
+                                                <div v-else class="w-16 h-16 rounded-lg bg-surface-5 flex items-center justify-center"><img src="/assets/music.svg" class="w-8 h-8 opacity-40" style="filter:brightness(0) invert(1);"></div>
+                                                <div class="flex-1 min-w-0" v-if="!isRenamingManagedPlaylist">
+                                                    <h2 class="text-xl font-bold truncate cursor-pointer hover:text-sp transition-colors" @click="startEditManagedPlaylist" title="Click to edit">{{ managedPlaylist.name }}</h2>
+                                                    <p v-if="managedPlaylist.description" class="text-xs text-gray-400 mt-0.5 truncate cursor-pointer hover:text-gray-300 transition-colors" @click="startEditManagedPlaylist">{{ managedPlaylist.description }}</p>
+                                                    <p class="text-xs text-gray-400 mt-0.5">{{ managedPlaylist.track_count }} tracks · {{ managedPlaylist.tracks?.length || 0 }} loaded</p>
+                                                </div>
+                                                <div class="flex-1 min-w-0" v-else>
+                                                    <input v-model="editingPlaylistName" @keydown.enter="finishEditManagedPlaylist" @keydown.escape="cancelEditManagedPlaylist"
+                                                        class="w-full bg-surface-4 text-xl font-bold border border-surface-5 rounded-lg px-2 py-1 outline-none focus:border-sp text-white" ref="editPlaylistNameInput" autofocus>
+                                                    <input v-model="editingPlaylistDesc" @keydown.enter="finishEditManagedPlaylist" @keydown.escape="cancelEditManagedPlaylist"
+                                                        placeholder="Add a description..."
+                                                        class="w-full bg-surface-4 text-xs text-gray-300 border border-surface-5 rounded-lg px-2 py-1 mt-1 outline-none focus:border-sp">
+                                                    <div class="flex gap-2 mt-1.5">
+                                                        <button @click="finishEditManagedPlaylist" class="text-[10px] px-3 py-1 bg-sp text-black rounded-full font-medium hover:bg-sp-light transition-colors">Save</button>
+                                                        <button @click="cancelEditManagedPlaylist" class="text-[10px] px-3 py-1 bg-surface-4 text-gray-400 rounded-full hover:text-white transition-colors">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Action Buttons -->
+                                            <div class="max-w-3xl mx-auto mt-3 flex gap-2">
+                                                <button @click="setManageAction('chat')"
+                                                    :class="['text-xs px-4 py-2 rounded-full transition-all font-medium', manageAction === 'chat' ? 'bg-sp text-black' : 'bg-surface-4 hover:bg-surface-5 text-gray-300']">
+                                                    Chat</button>
+                                                <button @click="setManageAction('sort')"
+                                                    :class="['text-xs px-4 py-2 rounded-full transition-all font-medium', manageAction === 'sort' ? 'bg-sp text-black' : 'bg-surface-4 hover:bg-surface-5 text-gray-300']">
+                                                    Sort</button>
+                                                <button @click="setManageAction('add-songs')"
+                                                    :class="['text-xs px-4 py-2 rounded-full transition-all font-medium', manageAction === 'add-songs' ? 'bg-sp text-black' : 'bg-surface-4 hover:bg-surface-5 text-gray-300']">
+                                                    Add Songs</button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Track List -->
+                                        <div class="flex-1 overflow-y-auto scrollbar-thin p-4">
+                                            <div class="max-w-3xl mx-auto">
+                                                <!-- Column Headers -->
+                                                <div v-if="managedPlaylist.tracks && managedPlaylist.tracks.length > 0" class="flex items-center gap-3 px-3 pb-2 mb-1 border-b border-surface-5/40 text-[10px] text-gray-600 uppercase tracking-wider font-semibold">
+                                                    <span class="w-8 text-right shrink-0">#</span>
+                                                    <span class="w-10 shrink-0"></span>
+                                                    <span class="flex-1 min-w-0">Title</span>
+                                                    <span class="w-[140px] shrink-0 hidden md:block">Album</span>
+                                                    <span class="w-[52px] shrink-0 text-right hidden md:block">Year</span>
+                                                    <span class="w-[52px] shrink-0 text-right">Duration</span>
+                                                </div>
+                                                <div v-if="managedPlaylist.tracks && managedPlaylist.tracks.length > 0" class="space-y-0.5">
+                                                    <div v-for="(track, idx) in managedPlaylist.tracks" :key="idx"
+                                                        class="hover:bg-surface-4 rounded-lg px-3 py-2 flex items-center gap-3 transition-all group">
+                                                        <span class="text-gray-500 text-sm w-8 text-right shrink-0">{{ idx + 1 }}</span>
+                                                        <img v-if="track.album_art" :src="track.album_art" class="w-10 h-10 rounded object-cover shrink-0">
+                                                        <div v-else class="w-10 h-10 rounded bg-surface-5 flex items-center justify-center shrink-0"><img src="/assets/music.svg" class="w-5 h-5 opacity-40" style="filter:brightness(0) invert(1);"></div>
+                                                        <div class="flex-1 min-w-0">
+                                                            <p class="text-sm font-medium truncate">{{ track.name }}</p>
+                                                            <p class="text-xs text-gray-500 truncate">{{ track.artist }}</p>
+                                                        </div>
+                                                        <span class="w-[140px] shrink-0 text-xs text-gray-500 truncate hidden md:block">{{ track.album || '' }}</span>
+                                                        <span class="w-[52px] shrink-0 text-xs text-gray-500 text-right tabular-nums hidden md:block">{{ track.release_date ? track.release_date.substring(0, 4) : '' }}</span>
+                                                        <span class="w-[52px] shrink-0 text-xs text-gray-500 text-right tabular-nums">{{ track.duration_ms ? formatDuration(track.duration_ms) : '' }}</span>
+                                                    </div>
+                                                </div>
+                                                <div v-else class="text-center py-12 text-gray-500">
+                                                    <div class="loading-dots flex gap-1 justify-center"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                                                    <p class="text-sm mt-3">Loading tracks...</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- No Playlist Selected -->
+                                    <div v-else class="flex-1 flex items-center justify-center p-8">
+                                        <div class="text-center max-w-md">
+                                            <h3 class="text-xl font-bold mb-2">Select a Playlist</h3>
+                                            <p class="text-gray-400 text-sm mb-4">Click any playlist on the left to view its tracks and manage it</p>
+                                            <div class="flex flex-wrap justify-center gap-2 mt-6">
+                                                <div class="text-xs bg-surface-3 text-gray-400 px-3 py-2 rounded-lg">Chat about songs</div>
+                                                <div class="text-xs bg-surface-3 text-gray-400 px-3 py-2 rounded-lg">Sort by popularity</div>
+                                                <div class="text-xs bg-surface-3 text-gray-400 px-3 py-2 rounded-lg">Add AI-matched songs</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Manage Right Panel: Chat -->
+                                <div v-if="manageAction === 'chat' && managedPlaylist"
+                                    class="w-[340px] bg-surface-2 border-l border-surface-5/40 flex flex-col shrink-0">
+                                    <div class="p-3 border-b border-surface-5/40 flex items-center justify-between">
+                                        <p class="text-sm font-bold">Chat about this playlist</p>
+                                        <button @click="manageAction = null" class="text-gray-400 hover:text-white text-sm transition-colors">✕</button>
+                                    </div>
+                                    <div id="manage-chat-scroll" class="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-3">
+                                        <div v-if="manageChatMessages.length === 0" class="text-center py-8 text-gray-500">
+                                            <p class="text-sm">Ask me anything about the songs in this playlist</p>
+                                        </div>
+                                        <div v-for="msg in manageChatMessages" :key="msg.content"
+                                            :class="['max-w-[90%] rounded-xl px-3 py-1.5 text-sm slide-up', msg.role === 'user' ? 'bg-sp text-black ml-auto' : 'bg-surface-3 text-white']">
+                                            <div v-if="msg.role === 'assistant'" v-html="renderMarkdown(msg.content)" class="prose-sm text-sm"></div>
+                                            <p v-else class="whitespace-pre-wrap">{{ msg.content }}</p>
+                                        </div>
+                                        <div v-if="isManageChatLoading" class="flex justify-start">
+                                            <div class="bg-surface-3 rounded-xl p-3">
+                                                <div class="loading-dots flex gap-1"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 border-t border-surface-5/40">
+                                        <div class="flex gap-2">
+                                            <textarea v-model="manageChatInput" @keydown.enter.exact="handleManageChatEnterKey"
+                                                placeholder="Ask about this playlist..."
+                                                class="flex-1 bg-surface-4 text-white rounded-lg px-3 py-2 text-sm placeholder-gray-500 border border-surface-5 focus:border-sp outline-none resize-none"
+                                                rows="1"></textarea>
+                                            <button @click="sendManageChat" :disabled="isManageChatLoading || !manageChatInput.trim()"
+                                                class="bg-sp hover:bg-sp-light text-black font-bold px-4 rounded-lg text-xs transition-all disabled:opacity-30">Send</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Manage Right Panel: Sort Options -->
+                                <div v-if="manageAction === 'sort' && managedPlaylist && !manageSortedPlaylist"
+                                    class="w-[340px] bg-surface-2 border-l border-surface-5/40 flex flex-col shrink-0">
+                                    <div class="p-3 border-b border-surface-5/40 flex items-center justify-between">
+                                        <p class="text-sm font-bold">Sort playlist</p>
+                                        <button @click="manageAction = null" class="text-gray-400 hover:text-white text-sm transition-colors">✕</button>
+                                    </div>
+                                    <div class="flex-1 flex items-center justify-center p-6">
+                                        <div class="space-y-3 w-full max-w-xs">
+                                            <p class="text-xs text-gray-400 text-center mb-4">Choose how to sort "{{ managedPlaylist.name }}"</p>
+                                            <button v-for="s in manageSortOptions" :key="s.value" @click="manageSortPlaylist(s.value)"
+                                                :disabled="isManageSorting"
+                                                class="w-full text-sm bg-surface-4 hover:bg-sp hover:text-black text-gray-300 px-4 py-3 rounded-xl transition-all disabled:opacity-50">
+                                                {{ s.label }}
+                                            </button>
+                                            <div v-if="isManageSorting" class="text-center pt-4">
+                                                <div class="loading-dots flex gap-1 justify-center"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                                                <p class="text-xs text-gray-500 mt-2">Sorting...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Manage Right Panel: Sorted Result -->
+                                <div v-if="manageSortedPlaylist"
+                                    class="w-[380px] bg-surface-2 border-l border-surface-5/40 flex flex-col shrink-0 slide-right-panel overflow-hidden">
+                                    <div class="p-3 border-b border-surface-5/40">
+                                        <input v-model="manageSortedPlaylist.name"
+                                            class="w-full bg-transparent text-lg font-bold border-none outline-none placeholder-gray-500"
+                                            placeholder="Playlist Name">
+                                        <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ manageSortedPlaylist.description }}</p>
+                                        <p class="text-[10px] text-gray-600 mt-0.5">{{ manageSortedPlaylist.songs.length }} tracks</p>
+                                    </div>
+                                    <div class="flex-1 overflow-y-auto scrollbar-thin">
+                                        <div v-for="(track, idx) in manageSortedPlaylist.songs" :key="idx"
+                                            class="song-card group">
+                                            <span class="text-gray-500 text-xs w-6 text-right shrink-0">{{ idx + 1 }}</span>
+                                            <img v-if="track.album_art_small || track.album_art" :src="track.album_art_small || track.album_art"
+                                                class="w-10 h-10 rounded object-cover shrink-0">
+                                            <div v-else class="w-10 h-10 rounded bg-surface-5 flex items-center justify-center shrink-0"><img src="/assets/music.svg" class="w-5 h-5 opacity-40" style="filter:brightness(0) invert(1);"></div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-sm font-medium truncate">{{ track.name }}</p>
+                                                <p class="text-[10px] text-gray-500 truncate">{{ track.artist }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 border-t border-surface-5/40 space-y-2">
+                                        <button @click="saveManageResult('update')" :disabled="isSaving"
+                                            class="w-full bg-sp hover:bg-sp-light text-black font-bold py-2.5 rounded-full text-sm transition-all disabled:opacity-50">
+                                            {{ isSaving ? 'Saving...' : 'Update Playlist' }}</button>
+                                        <button @click="saveManageResult('new')" :disabled="isSaving"
+                                            class="w-full bg-surface-4 hover:bg-surface-5 text-gray-300 font-medium py-2 rounded-full text-xs transition-colors disabled:opacity-50">
+                                            Save as New Playlist</button>
+                                        <button @click="closeManageResult"
+                                            class="w-full bg-surface-4 hover:bg-red-900/30 text-gray-400 hover:text-red-400 py-2 rounded-full text-xs transition-colors">
+                                            Close</button>
+                                    </div>
+                                </div>
+
+                                <!-- Manage Right Panel: Add Songs Options -->
+                                <div v-if="manageAction === 'add-songs' && managedPlaylist && !manageAddedSongs"
+                                    class="w-[340px] bg-surface-2 border-l border-surface-5/40 flex flex-col shrink-0">
+                                    <div class="p-3 border-b border-surface-5/40 flex items-center justify-between">
+                                        <p class="text-sm font-bold">Add songs</p>
+                                        <button @click="manageAction = null" class="text-gray-400 hover:text-white text-sm transition-colors">✕</button>
+                                    </div>
+                                    <div class="flex-1 flex items-center justify-center p-6">
+                                        <div class="space-y-4 w-full max-w-xs text-center">
+                                            <p class="text-xs text-gray-400">How many AI-matched songs to add?</p>
+                                            <div class="flex gap-2 justify-center">
+                                                <button v-for="n in [5, 10, 15]" :key="n" @click="manageAddSongsCount = n"
+                                                    :class="['px-5 py-2.5 rounded-full text-sm font-medium transition-all', manageAddSongsCount === n ? 'bg-sp text-black' : 'bg-surface-4 text-gray-300 hover:bg-surface-5']">
+                                                    {{ n }}</button>
+                                            </div>
+                                            <button @click="manageAddSongs" :disabled="isManageAddingSongs"
+                                                class="w-full bg-sp hover:bg-sp-light text-black font-bold py-3 rounded-full text-sm transition-all disabled:opacity-50 mt-4">
+                                                {{ isManageAddingSongs ? 'Finding songs...' : 'Find Songs' }}</button>
+                                            <div v-if="isManageAddingSongs" class="pt-2">
+                                                <div class="loading-dots flex gap-1 justify-center"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                                                <p class="text-xs text-gray-500 mt-2">AI is analyzing your playlist...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Manage Right Panel: Added Songs Result -->
+                                <div v-if="manageAddedSongs"
+                                    class="w-[380px] bg-surface-2 border-l border-surface-5/40 flex flex-col shrink-0 slide-right-panel overflow-hidden">
+                                    <div class="p-3 border-b border-surface-5/40">
+                                        <p class="text-lg font-bold">New songs for "{{ manageAddedSongs.name }}"</p>
+                                        <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ manageAddedSongs.description }}</p>
+                                        <p class="text-[10px] text-gray-600 mt-0.5">{{ manageAddedSongs.songs.filter(s => !s.not_found).length }} songs found
+                                            <span v-if="manageAddedSongs.songs.filter(s => s.not_found).length" class="text-yellow-600"> · {{ manageAddedSongs.songs.filter(s => s.not_found).length }} not on Spotify</span></p>
+                                    </div>
+                                    <div class="flex-1 overflow-y-auto scrollbar-thin">
+                                        <div v-for="(song, idx) in manageAddedSongs.songs" :key="idx"
+                                            class="song-card group">
+                                            <span class="text-gray-500 text-xs w-6 text-right shrink-0">{{ idx + 1 }}</span>
+                                            <img v-if="song.album_art_small || song.album_art" :src="song.album_art_small || song.album_art"
+                                                class="w-10 h-10 rounded object-cover shrink-0">
+                                            <div v-else class="w-10 h-10 rounded bg-surface-5 flex items-center justify-center shrink-0"><img src="/assets/music.svg" class="w-5 h-5 opacity-40" style="filter:brightness(0) invert(1);"></div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-sm font-medium truncate"
+                                                    :class="song.not_found ? 'line-through text-gray-500' : ''">{{ song.name }}</p>
+                                                <p class="text-[10px] text-gray-500 truncate">{{ song.artist }}{{ song.duration_ms ? ' · ' + formatDuration(song.duration_ms) : '' }}</p>
+                                            </div>
+                                            <div class="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button @click="removeManageAddedSong(idx)" class="rating-btn text-[11px]" title="Remove">✕</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 border-t border-surface-5/40 space-y-2">
+                                        <button @click="saveManageResult('existing')" :disabled="isSaving"
+                                            class="w-full bg-sp hover:bg-sp-light text-black font-bold py-2.5 rounded-full text-sm transition-all disabled:opacity-50">
+                                            {{ isSaving ? 'Saving...' : 'Add to "' + manageAddedSongs.name + '"' }}</button>
+                                        <button @click="saveManageResult('new')" :disabled="isSaving"
+                                            class="w-full bg-surface-4 hover:bg-surface-5 text-gray-300 font-medium py-2 rounded-full text-xs transition-colors disabled:opacity-50">
+                                            Create new playlist</button>
+                                        <button @click="closeManageResult"
+                                            class="w-full bg-surface-4 hover:bg-red-900/30 text-gray-400 hover:text-red-400 py-2 rounded-full text-xs transition-colors">
+                                            Close</button>
+                                    </div>
+                                </div>
+                            </div>
+                </section>
+
+                <!-- ─── RIGHT PANEL (Results) ─── -->
+                <aside v-if="showPlaylistPanel && generatedPlaylist && (feature === 'from-playlists' || feature === 'from-prompt')"
+                    :style="{ width: rightPanelWidth + 'px' }"
+                    class="bg-surface-2 border-l border-surface-5/40 flex flex-col overflow-hidden shrink-0 slide-right-panel relative">
+                    <!-- Drag handle (left edge) -->
+                    <div @mousedown="startResizeRight" class="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-sp/40 transition-colors z-10"></div>
+                    <div class="p-4 border-b border-surface-5/40 shrink-0">
+                        <input v-model="generatedPlaylist.name"
+                            class="w-full bg-transparent text-lg font-bold border-none outline-none placeholder-gray-500 focus:ring-0"
+                            placeholder="Playlist Name">
+                        <p class="text-xs text-gray-500 mt-1 line-clamp-2">{{ generatedPlaylist.description }}</p>
+                        <p class="text-[10px] text-gray-600 mt-1">{{ foundSongsCount }} songs found<span
+                                v-if="notFoundSongsCount > 0" class="text-yellow-600"> · {{ notFoundSongsCount }} not on
+                                Spotify</span></p>
+                    </div>
+
+
+
+                    <div class="flex-1 overflow-y-auto scrollbar-thin">
+                        <div v-for="(song, index) in generatedPlaylist.songs" :key="index"
+                            :class="['song-card group', song.not_found && 'opacity-50', songRatings[index] === 'down' && 'opacity-40']">
+                            <div class="relative shrink-0">
+                                <img v-if="song.album_art_small" :src="song.album_art_small"
+                                    class="w-11 h-11 rounded object-cover">
+                                <div v-else
+                                    class="w-11 h-11 rounded bg-surface-5 flex items-center justify-center"><img src="/assets/music.svg" class="w-5 h-5 opacity-40" style="filter:brightness(0) invert(1);">
+                                </div>
+                                <button v-if="song.preview_url" @click.stop="playPreview(song, index)"
+                                    class="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded">
+                                    <span class="text-white text-lg">{{ currentlyPlayingIndex === index && isPlaying ? '⏸' : '▶' }}</span>
+                                </button>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium truncate"
+                                    :class="song.not_found ? 'line-through text-gray-500' : ''">{{ song.name }}</p>
+                                <p class="text-[11px] text-gray-500 truncate">{{ song.artist }}{{ song.album ? ' · ' + song.album : '' }}</p>
+                            </div>
+                            <!-- Duration (right-aligned, hidden on hover when actions show) -->
+                            <span v-if="song.duration_ms" class="text-[11px] text-gray-500 shrink-0 tabular-nums group-hover:hidden">{{ formatDuration(song.duration_ms) }}</span>
+                            <div
+                                class="flex items-center gap-0.5 shrink-0 hidden group-hover:flex transition-opacity">
+                                <button v-if="!song.not_found" @click="rateSong(index, 'up')"
+                                    :class="['rating-btn', songRatings[index] === 'up' && 'rating-btn-up']"
+                                    title="Keep this"><img src="/assets/thumbs-up.svg" class="w-3.5 h-3.5" style="filter:brightness(0) invert(0.75);"></button>
+                                <button v-if="!song.not_found" @click="rateSong(index, 'down')"
+                                    :class="['rating-btn', songRatings[index] === 'down' && 'rating-btn-down']"
+                                    title="Remove this"><img src="/assets/thumbs-down.svg" class="w-3.5 h-3.5" style="filter:brightness(0) invert(0.75);"></button>
+                                <button v-if="!song.not_found" @click="removeSong(index)"
+                                    class="rating-btn text-[11px]" title="Remove from playlist">✕</button>
+                                <a v-if="song.spotify_url" :href="song.spotify_url" target="_blank" class="rating-btn"
+                                    title="Open in Spotify"><svg class="w-3.5 h-3.5" style="filter:brightness(0) invert(0.75);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="showRefineInput" class="shrink-0 border-t border-surface-5/40 bg-surface-3 p-3 slide-up">
+                        <textarea v-model="refinePrompt" @keydown.ctrl.enter="refinePlaylist"
+                            @keydown.meta.enter="refinePlaylist"
+                            class="w-full bg-surface-4 text-white rounded-lg px-3 py-2 text-sm placeholder-gray-500 border border-surface-5 focus:border-sp outline-none resize-none"
+                            rows="2" placeholder="How should I improve this playlist? (thumbs up/down songs to influence)"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button @click="refinePlaylist" :disabled="isRefining"
+                                class="flex-1 bg-sp hover:bg-sp-light text-black font-bold py-2 rounded-full text-xs transition-all disabled:opacity-50">{{ isRefining ? 'Refining...' : 'Regenerate' }}</button>
+                            <button @click="showRefineInput = false"
+                                class="px-3 py-2 text-gray-400 hover:text-white text-xs transition-colors">Cancel</button>
+                        </div>
+                    </div>
+
+                    <div class="p-3 border-t border-surface-5/40 shrink-0 space-y-2">
+                        <div class="flex gap-2">
+                            <button @click="savePlaylistToSpotify" :disabled="isSaving || isCurrentPlaylistSaved"
+                                :class="['flex-1 font-bold py-2.5 rounded-full text-sm transition-all duration-300 transform hover:scale-[1.02] active:scale-95',
+                                    isCurrentPlaylistSaved ? 'bg-green-700 text-green-100 cursor-default' : 'bg-sp hover:bg-sp-light text-black',
+                                    (isSaving || isCurrentPlaylistSaved) && 'opacity-90 hover:scale-100']">
+                                {{ isSaving ? 'Saving...' : isCurrentPlaylistSaved ? '✓ Saved to Spotify' : 'Save to Spotify' }}</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button @click="showRefineInput = !showRefineInput"
+                                class="flex-1 bg-surface-4 hover:bg-surface-5 text-gray-300 py-2 rounded-full text-xs transition-colors">
+                                Modify</button>
+                            <button @click="discardPlaylist"
+                                class="flex-1 bg-surface-4 hover:bg-red-900/30 text-gray-400 hover:text-red-400 py-2 rounded-full text-xs transition-colors">
+                                Close</button>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- ─── AUDIO PLAYER BAR ─── -->
+            <div v-if="currentlyPlayingSong"
+                class="h-16 bg-surface-3 border-t border-surface-5/40 flex items-center px-4 gap-4 shrink-0 z-20">
+                <img v-if="currentlyPlayingSong.album_art_small" :src="currentlyPlayingSong.album_art_small"
+                    class="w-10 h-10 rounded">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium truncate">{{ currentlyPlayingSong.name }}</p>
+                    <p class="text-[10px] text-gray-500 truncate">{{ currentlyPlayingSong.artist }}</p>
+                </div>
+                <div class="flex-1 max-w-md mx-4">
+                    <div class="h-1 bg-surface-5 rounded-full overflow-hidden">
+                        <div class="h-full bg-sp rounded-full transition-all duration-300"
+                            :style="{width: playbackProgress + '%'}"></div>
+                    </div>
+                </div>
+                <button @click="togglePlayback" class="text-xl hover:scale-110 transition-transform">{{ isPlaying ? '⏸' : '▶️' }}</button>
+                <button @click="stopPreview" class="text-gray-400 hover:text-white transition-colors text-sm">✕</button>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
+        <div v-if="showSettings"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            @click.self="showSettings = false">
+            <div class="bg-surface-3 rounded-2xl p-6 w-full max-w-md shadow-2xl border border-surface-5/30 slide-up" @click.stop>
+                <div class="flex items-center justify-between mb-5">
+                    <h2 class="text-lg font-bold">Settings</h2>
+                    <button type="button" @click="showSettings = false"
+                        class="text-gray-400 hover:text-white transition-colors text-xl px-2">✕</button>
+                </div>
+
+                <!-- Provider status indicators -->
+                <div class="flex gap-3 mb-4 flex-wrap">
+                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                        :class="keyStatus.openai.verified ? 'bg-green-900/30 text-green-400 border border-green-700/40' : keyStatus.openai.configured ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/40' : 'bg-surface-4 text-gray-500 border border-surface-5/30'">
+                        <span v-if="keyStatus.openai.verified" class="text-green-400">&#10003;</span>
+                        <span v-else-if="keyStatus.openai.configured" class="text-yellow-400">!</span>
+                        <span v-else class="text-gray-500">&#10005;</span>
+                        OpenAI
+                    </div>
+                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                        :class="keyStatus.gemini.verified ? 'bg-green-900/30 text-green-400 border border-green-700/40' : keyStatus.gemini.configured ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/40' : 'bg-surface-4 text-gray-500 border border-surface-5/30'">
+                        <span v-if="keyStatus.gemini.verified" class="text-green-400">&#10003;</span>
+                        <span v-else-if="keyStatus.gemini.configured" class="text-yellow-400">!</span>
+                        <span v-else class="text-gray-500">&#10005;</span>
+                        Gemini
+                    </div>
+                    <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                        :class="keyStatus.spotify.verified ? 'bg-green-900/30 text-green-400 border border-green-700/40' : keyStatus.spotify.configured ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700/40' : 'bg-surface-4 text-gray-500 border border-surface-5/30'">
+                        <span v-if="keyStatus.spotify.verified" class="text-green-400">&#10003;</span>
+                        <span v-else-if="keyStatus.spotify.configured" class="text-yellow-400">!</span>
+                        <span v-else class="text-gray-500">&#10005;</span>
+                        Spotify
+                    </div>
+                    <button @click="verifyKeys" :disabled="keyStatusLoading"
+                        class="ml-auto text-xs text-gray-400 hover:text-white transition-colors"
+                        :class="{'animate-pulse': keyStatusLoading}">
+                        {{ keyStatusLoading ? 'Checking...' : 'Re-check' }}
+                    </button>
+                </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                                Spotify Client ID
+                                <span v-if="keyStatusLoading" class="text-gray-500 normal-case font-normal">Checking...</span>
+                                <span v-else-if="keyStatus.spotify.verified" class="text-green-400 normal-case font-normal">Connected</span>
+                                <span v-else-if="keyStatus.spotify.configured && keyStatus.spotify.error" class="text-red-400 normal-case font-normal truncate max-w-[180px]" :title="keyStatus.spotify.error">Invalid</span>
+                                <span v-else-if="!keyStatus.spotify.configured" class="text-gray-500 normal-case font-normal">Not configured</span>
+                            </label>
+                            <input v-model="settingsForm.spotifyClientId" type="text" class="inp text-sm"
+                                placeholder="Leave blank to keep current">
+                        </div>
+                        <div>
+                            <label class="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                                Spotify Client Secret
+                                <span v-if="keyStatus.spotify.verified" class="text-green-400 normal-case font-normal">&#10003;</span>
+                                <span v-else-if="keyStatus.spotify.configured" class="text-yellow-400 normal-case font-normal">!</span>
+                            </label>
+                            <input v-model="settingsForm.spotifyClientSecret" type="password" class="inp text-sm"
+                                placeholder="Leave blank to keep current">
+                        </div>
+                        <div>
+                            <label class="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                                OpenAI API Key
+                                <span v-if="keyStatusLoading" class="text-gray-500 normal-case font-normal">Checking...</span>
+                                <span v-else-if="keyStatus.openai.verified" class="text-green-400 normal-case font-normal">Connected</span>
+                                <span v-else-if="keyStatus.openai.configured && keyStatus.openai.error" class="text-red-400 normal-case font-normal truncate max-w-[180px]" :title="keyStatus.openai.error">Invalid key</span>
+                                <span v-else-if="!keyStatus.openai.configured" class="text-gray-500 normal-case font-normal">Not configured</span>
+                            </label>
+                            <input v-model="settingsForm.openaiApiKey" type="password" class="inp text-sm"
+                                placeholder="Leave blank to keep current">
+                        </div>
+                        <div>
+                            <label class="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
+                                Gemini API Key
+                                <span v-if="keyStatusLoading" class="text-gray-500 normal-case font-normal">Checking...</span>
+                                <span v-else-if="keyStatus.gemini.verified" class="text-green-400 normal-case font-normal">Connected</span>
+                                <span v-else-if="keyStatus.gemini.configured && keyStatus.gemini.error" class="text-red-400 normal-case font-normal truncate max-w-[180px]" :title="keyStatus.gemini.error">Invalid key</span>
+                                <span v-else-if="!keyStatus.gemini.configured" class="text-gray-500 normal-case font-normal">Not configured</span>
+                            </label>
+                            <input v-model="settingsForm.geminiApiKey" type="password" class="inp text-sm"
+                                placeholder="Leave blank to keep current">
+                        </div>
+                    </div>
+
+                <!-- Cost Preset -->
+                <div class="mt-5 pt-4 border-t border-surface-5/40">
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Cost Preset</p>
+                    <p class="text-[9px] text-gray-600 mb-3">Applies to OpenAI models only. Gemini models are not affected by these limits.</p>
+                    <div class="flex gap-2 mb-3">
+                        <button v-for="(preset, key) in COST_PRESETS" :key="key" @click="applyCostPreset(key)"
+                            :class="['flex-1 py-2 rounded-xl text-xs font-semibold transition-all border',
+                                settingsForm.costPreset === key ? 'bg-sp/15 text-sp border-sp/40' : 'bg-surface-4 text-gray-400 border-surface-5 hover:border-gray-400']">
+                            <div>{{ preset.label }}</div>
+                            <div class="text-[9px] opacity-60 mt-0.5">{{ preset.cost }}</div>
+                        </button>
+                        <button @click="applyCostPreset('custom')"
+                            :class="['flex-1 py-2 rounded-xl text-xs font-semibold transition-all border',
+                                settingsForm.costPreset === 'custom' ? 'bg-sp/15 text-sp border-sp/40' : 'bg-surface-4 text-gray-400 border-surface-5 hover:border-gray-400']">
+                            <div>Custom</div>
+                            <div class="text-[9px] opacity-60 mt-0.5">Manual</div>
+                        </button>
+                    </div>
+                    <!-- Show details for any preset -->
+                    <div class="bg-surface-4/50 rounded-lg p-2.5 text-[10px] text-gray-500 space-y-1">
+                        <div class="flex justify-between"><span>Max Tool Calls</span><span class="text-gray-300">{{ settingsForm.maxToolCalls || 'unlimited' }}</span></div>
+                        <div class="flex justify-between"><span>Max Output Tokens</span><span class="text-gray-300">{{ settingsForm.maxOutputTokens || 'unlimited' }}</span></div>
+                        <div class="flex justify-between"><span>Reasoning Effort</span><span class="text-gray-300">{{ settingsForm.reasoningEffort }}</span></div>
+                    </div>
+                    <!-- Custom fields (expanded only when custom) -->
+                    <div v-if="settingsForm.costPreset === 'custom'" class="mt-3 grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Tool Calls</label>
+                            <input v-model.number="settingsForm.maxToolCalls" type="number" min="0" step="1" class="inp text-xs" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Output Tokens</label>
+                            <input v-model.number="settingsForm.maxOutputTokens" type="number" min="0" step="1000" class="inp text-xs" placeholder="0">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-gray-500 mb-1">Reasoning</label>
+                            <select v-model="settingsForm.reasoningEffort" class="inp text-xs">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Show Usage Toggle -->
+                <div class="mt-4 pt-4 border-t border-surface-5/40">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Show Usage</p>
+                            <p class="text-[9px] text-gray-600 mt-0.5">Show token usage after each generation</p>
+                        </div>
+                        <button @click="debugMode = !debugMode"
+                            :class="['relative inline-flex items-center w-10 h-5 rounded-full transition-colors duration-200 shrink-0',
+                                debugMode ? 'bg-sp' : 'bg-surface-5']">
+                            <span :class="['inline-block w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform duration-200',
+                                debugMode ? 'translate-x-[22px]' : 'translate-x-[2px]']"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- GitHub Repository Link -->
+                <div class="mt-4 pt-4 border-t border-surface-5/40">
+                    <a href="https://github.com/kubojion/spotify-playlist-sorter" target="_blank"
+                        class="flex items-center gap-2 text-xs text-gray-400 hover:text-sp transition-colors">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.605-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                        <span>View on GitHub</span>
+                        <span class="text-gray-600">kubojion/spotify-playlist-sorter</span>
+                    </a>
+                </div>
+
+                <div class="flex gap-2 mt-6">
+                    <button @click="saveSettings"
+                        class="flex-1 bg-sp hover:bg-sp-light text-black font-bold py-2.5 rounded-full text-sm transition-all">Save
+                        Changes</button>
+                    <button @click="logoutSpotify"
+                        class="px-4 py-2.5 bg-surface-4 hover:bg-red-900/30 text-gray-400 hover:text-red-400 rounded-full text-sm transition-colors">Logout</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════ HISTORY CONTEXT MENU ═══════════════════ -->
+        <div v-if="historyContextMenu.show" class="fixed z-[70] bg-surface-3 border border-surface-5 rounded-lg shadow-xl py-1 min-w-[120px]"
+            :style="{ left: historyContextMenu.x + 'px', top: historyContextMenu.y + 'px' }">
+            <button @click="startRenameChatHistory(historyContextMenu.historyId)" class="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-surface-4 transition-colors">Rename</button>
+            <button @click="deleteChatHistory(historyContextMenu.historyId)" class="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-surface-4 transition-colors">Delete</button>
+        </div>
+
+        <!-- ═══════════════════ PLAYLIST CONTEXT MENU ═══════════════════ -->
+        <div v-if="playlistContextMenu.show" class="fixed z-[70] bg-surface-3 border border-surface-5 rounded-lg shadow-xl py-1 min-w-[140px]"
+            :style="{ left: playlistContextMenu.x + 'px', top: playlistContextMenu.y + 'px' }">
+            <button @click="renamePlaylistFromMenu" class="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-surface-4 transition-colors">Rename</button>
+            <button @click="deletePlaylistFromMenu" class="w-full text-left px-3 py-1.5 text-xs text-red-400 hover:bg-surface-4 transition-colors">Delete</button>
+        </div>
+
+        <!-- ═══════════════════ TOAST NOTIFICATIONS ═══════════════════ -->
+        <div class="fixed top-16 left-1/2 -translate-x-1/2 z-50 space-y-2 pointer-events-none flex flex-col items-center">
+            <div v-for="(toast, i) in toasts" :key="toast.id" :class="['pointer-events-auto px-5 py-2.5 rounded-full shadow-lg text-sm font-medium slide-up whitespace-nowrap',
+                    toast.type === 'success' ? 'bg-sp/90 text-black' :
+                    toast.type === 'error' ? 'bg-red-600/90 text-white' :
+                    'bg-surface-4 text-white border border-surface-5']">
+                {{ toast.message }}
+            </div>
+        </div>
+
+        <!-- Hidden Audio Element -->
+        <audio ref="audioPlayer" @ended="onAudioEnded" @timeupdate="onTimeUpdate"></audio>
+    </div>
+
+    <!-- ═══════════════════ SCRIPTS ═══════════════════ -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Add global error handler
+        window.addEventListener('error', function (e) {
+            console.error('Global error:', e.message, e.filename, e.lineno);
+            document.body.innerHTML = '<div style="padding:2rem;color:#fff;background:#121212;font-family:monospace;">' +
+                '<h1 style="color:#f00;">JavaScript Error</h1>' +
+                '<p><strong>Message:</strong> ' + e.message + '</p>' +
+                '<p><strong>File:</strong> ' + e.filename + '</p>' +
+                '<p><strong>Line:</strong> ' + e.lineno + '</p>' +
+                '<p><strong>Check the browser console for more details.</strong></p>' +
+                '</div>';
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+            console.error('Unhandled promise rejection:', e.reason);
+        });
+    </script>
+    <script src="/js/app.js"></script>
+    <script>
+        // Failsafe: remove pre-load after 5 seconds even if Vue fails to mount
+        setTimeout(function () {
+            var preLoad = document.getElementById('pre-load');
+            if (preLoad) {
+                preLoad.remove();
+                console.error('Vue failed to mount within 5 seconds');
+                // Show error message
+                var errorDiv = document.createElement('div');
+                errorDiv.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#121212;color:#fff;font-family:sans-serif;padding:2rem;';
+                errorDiv.innerHTML = '<div style="text-align:center;"><h1 style="color:#f00;font-size:2rem;margin-bottom:1rem;">Failed to Load</h1><p>Open browser console (F12) to see errors</p><p style="margin-top:1rem;font-size:0.875rem;color:#999;">Press Ctrl+Shift+R to hard refresh</p></div>';
+                document.body.appendChild(errorDiv);
+            }
+        }, 5000);
+    </script>
+</body>
+
+</html>

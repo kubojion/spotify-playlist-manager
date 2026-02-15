@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
+  fill="none" stroke="#1ed760" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-label="App icon">
+  <!-- outer ring -->
+  <circle cx="12" cy="12" r="9"/>
+  <!-- wave strokes (not Spotify arcs; different geometry/placement) -->
+  <path d="M7.2 12.2c1.8-1.2 3.8-1.4 5.9-.5"/>
+  <path d="M7.6 15.1c2.2-1.5 4.7-1.7 7.3-.6"/>
+  <path d="M8.0 9.4c1.5-1.0 3.1-1.1 4.8-.4"/>
+  <!-- AI spark -->
+  <path d="M16.9 7.2l.4 1.2 1.2.4-1.2.4-.4 1.2-.4-1.2-1.2-.4 1.2-.4.4-1.2z"/>
+</svg>

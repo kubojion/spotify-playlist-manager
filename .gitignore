@@ -1,0 +1,33 @@
+# Environment
+venv/
+.env
+
+# Config & Auth (contains secrets)
+config.json
+.spotify_cache
+.cache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Old root-level source files (migrated to src/)
+/app.py
+/ai_client.py
+/spotify_client.py
+/config_manager.py
+/assets/
+/templates/
